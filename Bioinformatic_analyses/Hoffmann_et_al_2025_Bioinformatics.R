@@ -1,5 +1,3 @@
-#!/usr/bin/env Rscript
-#
 # ============================================================================
 # Automated gRNA Target Search for dCas12f Proteins
 # ============================================================================
@@ -31,9 +29,6 @@
 #   3. Run sections sequentially - each major section clears the environment
 #   4. External command-line tools (commented out) should be run separately
 #
-# Author: [Author name]
-# Date: [Date]
-# Associated publication: [Citation]
 #
 # ============================================================================
 
