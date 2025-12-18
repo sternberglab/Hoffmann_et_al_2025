@@ -1717,7 +1717,7 @@ df <- df %>% filter(width(intergen.hth_ncRNA) < 1000)
 inter <- DNAStringSet(setNames(df$intergen.hth_ncRNA, df$index))
 writeXStringSet(inter, "RpoE_HTH_intergenic_regions.fna")
 
-# Use nHMMER to search these with sequence of Ata HTH binding site [determined via FTH's ChIP-seq]
+# Use nHMMER to search these with sequence of Ata HTH binding site [determined via ChIP-seq]
 # nhmmer --tblout Ata_HTH_binding_site.RpoE_HTH_intergenic_regions.tbl \
 # Ata_HTH_binding_site.fna \
 # RpoE_HTH_intergenic_regions.fna > \
@@ -1747,7 +1747,7 @@ for(i in 1:nrow(hmm)) {
 # palindrome -sequence RpoE_HTH_intergenic_regions.fna -minpallen 7 -maxpallen 9 -gaplimit 2 -nummismatches 1 \
 # -outfile RpoE_HTH_intergenic_regions.palindromes.txt -overlap Y
 
-# Import results [GPT]
+# Import results 
 lines <- readLines("RpoE_HTH_intergenic_regions.palindromes.txt")
 
 # Initialize variables
@@ -1782,7 +1782,7 @@ for (i in seq_along(lines)) {
   }
 }
 
-# Combine results into a dataframe and fix a few things GPT got wrong
+# Combine results into a dataframe and fix a few things
 final_df <- do.call(rbind, results) %>% filter(!duplex == "") %>% mutate(duplex = trimws(duplex))
 hits <- final_df %>% mutate(index = as.numeric(index))
 
