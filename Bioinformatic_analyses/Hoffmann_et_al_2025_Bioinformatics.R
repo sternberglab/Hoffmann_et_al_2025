@@ -15,13 +15,16 @@
 #   6. Identifying ncRNA elements associated with target loci
 #   7. Categorizing targets by predicted function
 #   8. TAM (Target Adjacent Motif) determination
+#   9. HTH binding site identification
 #
 # Dependencies:
 #   R packages: tidyverse, ggplot2, Biostrings, biomartr, DECIPHER, rentrez,
-#               rBLAST, GenomicRanges, ggsci, gggenes, ggbreak, RColorBrewer
+#               rBLAST, GenomicRanges, ggsci, gggenes, ggbreak, RColorBrewer,
+#               reshape2
 #   
 #   External tools: Infernal (cmsearch, cmbuild, cmcalibrate), BLAST+, 
-#                   MMseqs2, MAFFT (linsi), LocARNA, HMMER3, Bakta, weblogo
+#                   MMseqs2, MAFFT (linsi), LocARNA, HMMER3, Bakta, weblogo,
+#                   EMBOSS
 #
 # Usage:
 #   1. Set the working directory to your project folder
@@ -30,6 +33,8 @@
 #   4. External command-line tools (commented out) should be run separately
 #
 #
+# Note: filenames with HAT refer to sequences extracted from the supplement of
+#   Altae-Tran et al. (2023, PNAS | DOI: 10.1073/pnas.2308224120) 
 # ============================================================================
 
 # Load required libraries
@@ -45,6 +50,7 @@ library(ggsci)
 library(gggenes)
 library(ggbreak)
 library(RColorBrewer)
+library(reshape2)
 
 # ============================================================================
 # CONFIGURATION - MODIFY THESE PATHS FOR YOUR ENVIRONMENT
@@ -1644,6 +1650,236 @@ ggplot(df) +
   scale_x_continuous(breaks = 1:14) +
   xlab("gRNA-target duplex position") +
   geom_text(aes(x = pos, y = 0, label = round(mm.per, 1)), size = 3)
+
+
+
+###############################################################
+# Identify HTH binding sites in the intergenic region between HTH and RpoE
+###############################################################
+
+# [Note: Fta locus = 441326]
+
+# Import dCas12f info and loci annotations
+df.all <- read_tsv("input_data/Cas12f_Cas12_from_HAT_subtree2.info.v3.tsv")
+annot.all <- read_tsv("input_data/Cas12f_Cas12_from_HAT_subtree2.loci_annot.v2.tsv")
+
+# Import HAT loci
+loci <- readDNAStringSet("input_data/HAT_loci.fna")
+
+# Import TSV of ncRNA hit
+ncrna <- read_tsv("input_data/ncRNA_hits.v1.tsv")
+
+# Restrict info to only dCas12f sequences with an associated HTH
+df <- df.all %>% filter(assoc.hth == TRUE & DED.complete == FALSE)
+annot <- annot.all %>% filter(seq_id %in% df$index)
+
+# Restrict info to only dCas12f sequences with an associated ncRNA
+df <- df %>% filter(index %in% ncrna$hit)
+annot <- annot.all %>% filter(seq_id %in% df$index)
+
+# Iterate through each locus to pull the sequence between HTH and the ncRNA
+df$intergen.hth_ncRNA <- NA
+
+for(i in 1:nrow(df)){
+  
+  # Extract locus
+  this.locus <- loci[names(loci) == df$index[i]]
+  
+  # Extract annotations
+  this.annot <- annot %>% filter(seq_id == df$index[i])
+  this.ncrna <- ncrna %>% filter(hit == df$index[i])
+  
+  # Some loci have more than one HTH annotations, deal with this
+  this.hth <- which(this.annot$name == "HTH")
+  this.rpoe <- which(this.annot$name == "RpoE")
+  this.hth <- this.hth[this.hth == this.rpoe - 1]
+  
+  if(length(this.hth) == 1) {
+    
+    # Get start and end values
+    this.start <- this.annot$end[this.hth] + 1
+    this.end <- this.ncrna$hit.start - 1
+    
+    if(length(this.start) == 1 & length(this.end) == 1) {
+      
+      # Extract sequence and add to tibble
+      df$intergen.hth_ncRNA[i] <- unname(as.character(narrow(this.locus, start = this.start, this.end))) } }
+  
+}
+
+# Remove dCas12f sequence info where we were unable to pull HTH-ncRNA intergenic sequence
+df <- df %>% filter(!is.na(df$intergen.hth_ncRNA))
+
+# Remove any had that an intergenic length >= 1 kbp
+df <- df %>% filter(width(intergen.hth_ncRNA) < 1000)
+
+# Build and export FASTA
+inter <- DNAStringSet(setNames(df$intergen.hth_ncRNA, df$index))
+writeXStringSet(inter, "RpoE_HTH_intergenic_regions.fna")
+
+# Use nHMMER to search these with sequence of Ata HTH binding site [determined via FTH's ChIP-seq]
+# nhmmer --tblout Ata_HTH_binding_site.RpoE_HTH_intergenic_regions.tbl \
+# Ata_HTH_binding_site.fna \
+# RpoE_HTH_intergenic_regions.fna > \
+# Ata_HTH_binding_site.RpoE_HTH_intergenic_regions.txt
+
+# Import the results
+colz <- c("put_target.id", "rem1", "query", "rem2", "hmm.from", "hmm.to", "ali.from", "ali.to", 
+          "env.from", "env.to", "sq.len", "strand", "evalue", "score", "bias", "description")
+hmm <- read_table("Ata_HTH_binding_site.RpoE_HTH_intergenic_regions.tbl", col_names = colz, comment = "#")
+
+# Iterate through each hit to add sequence to HMMer output
+hmm$hth_site <- NA
+
+for(i in 1:nrow(hmm)) {
+  
+  # Pull locus sequence
+  this.locus <- inter[names(inter) == hmm$put_target.id[i]]
+  
+  # Add ncRNA sequence
+  hmm$hth_site[i] <- unname(as.character(narrow(this.locus, start = hmm$ali.from[i], end = hmm$ali.to[i])))
+  
+}
+
+# Okay, only four hits that were identical to Ata locus.
+
+# Next let's try the EMBOSS palindrome tool
+# palindrome -sequence RpoE_HTH_intergenic_regions.fna -minpallen 7 -maxpallen 9 -gaplimit 2 -nummismatches 1 \
+# -outfile RpoE_HTH_intergenic_regions.palindromes.txt -overlap Y
+
+# Import results [GPT]
+lines <- readLines("RpoE_HTH_intergenic_regions.palindromes.txt")
+
+# Initialize variables
+results <- list()
+current_accession <- NA
+
+# Parse the file
+for (i in seq_along(lines)) {
+  line <- lines[i]
+  
+  # Check for new accession
+  if (grepl("^Palindromes of:", line)) {
+    current_accession <- str_extract(line, "\\d+")
+  }
+  
+  # Extract palindrome details
+  if (grepl("^\\d+\\s+\\w+\\s+\\d+$", line)) {
+    first_half <- str_match(line, "^(\\d+)\\s+(\\w+)\\s+(\\d+)$")
+    second_half <- str_match(lines[i + 2], "^(\\d+)\\s+(\\w+)\\s+(\\d+)$")
+    concordance <- lines[i + 1]
+    
+    results <- append(results, list(data.frame(
+      index = current_accession,
+      start1 = as.integer(first_half[2]),
+      end1 = as.integer(first_half[4]),
+      seq1 = first_half[3],
+      start2 = as.integer(second_half[4]),
+      end2 = as.integer(second_half[2]),
+      seq2 = second_half[3],
+      duplex = concordance
+    )))
+  }
+}
+
+# Combine results into a dataframe and fix a few things GPT got wrong
+final_df <- do.call(rbind, results) %>% filter(!duplex == "") %>% mutate(duplex = trimws(duplex))
+hits <- final_df %>% mutate(index = as.numeric(index))
+
+# Clean up
+rm(lines, results, current_accession, final_df, i, line, first_half, second_half, concordance)
+
+# Check whether or not we found at least 1 palindrome for each intergenic region
+table(names(inter) %in% hits$index) # 349 = TRUE
+
+# Okay, start with the ones we that do have a hit for
+# Add column for width of the HTH contact, width of the spacer, and width of the whole motif
+hits$binding.len <- width(hits$seq1)
+hits.all <- hits %>% mutate(binding.len = width(seq1), 
+                            spacer.len = start2 - end1 - 1,
+                            motif.len = end2 - start1 + 1)
+
+# Add a column to assess whether or not a match between the two halves of the palindrome is perfect
+# hits.all <- hits.all %>% mutate(perf.match = case_when(
+#   sum(str_split(duplex,"")[[1]] == "|") == width(seq1) ~ TRUE,
+#   TRUE ~ FALSE
+# ))
+hits.all$perf.match <- FALSE
+for(i in 1:nrow(hits.all)){ 
+  
+  if(sum(str_split(hits.all$duplex[i],"")[[1]] == "|") == width(hits.all$seq1[i])){
+    
+    hits.all$perf.match[i] <- TRUE
+    
+  }
+}
+
+# Filter for hits that are similar to Ata
+hits.all[hits.all$index == 441326,]
+hits <- hits.all %>% filter(binding.len == 8, motif.len == 18)
+round(length(unique(hits$index))/length(inter)*100, 1) # 13.5% of loci are covered 
+hits[hits$index == 441326,]
+
+# Not great. Let's try filtering out hits that aren't close to the start of the HTH gene
+hits <- hits.all %>% filter(start1 < 50)
+round(length(unique(hits$index))/length(inter)*100, 1) # 94.8% of loci are covered 
+hits[hits$index == 441326,]
+
+# Okay, let's just try graphing the start positions of each of these motifs
+# First let's only look at hits from a set of unique intergenic sequences [n = 349 total, 161 unique]
+hits <- hits.all %>% 
+  filter(index %in% names(unique(inter))) #%>%
+# filter(binding.len == 8, spacer.len < 4)
+
+# Next graph start
+ggplot() + 
+  geom_histogram(aes(x = hits$start1, fill = hits$perf.match), binwidth = 5) +
+  theme_classic() +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  ylab("Number of intergenic sequences") +
+  xlab("Distance from start of HTH") +
+  geom_vline(xintercept = 33.5, color = "blue")
+
+# Restrict to 50 nt away
+# y <- hits %>% filter(start1 < 35 & start1 > 28)
+y <- hits %>% filter(start1 < 50)
+z0 <- y %>% count(seq1)
+z <- y %>% count(index)
+
+ggplot() +
+  geom_histogram(aes(x = z$n)) + 
+  theme_classic() +
+  scale_x_continuous(limits = c(0, 14), expand = c(0, 0), breaks = c(1:15)) +
+  scale_y_continuous(expand = c(0, 0))
+
+
+ggplot() + 
+  geom_histogram(data = hits %>% filter(start1 < 50), aes(x = start1, fill = perf.match), binwidth = 1) +
+  theme_classic() +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  ylab("Number of intergenic sequences") +
+  xlab("Distance from start of HTH") +
+  geom_vline(xintercept = 33.5, color = "blue")
+
+# Iterate through each hit to add sequence
+hits.all$motif.nt <- NA
+
+for(i in 1:nrow(hits.all)) {
+  
+  # Pull locus sequence
+  this.locus <- inter[names(inter) == hits.all$index[i]]
+  
+  # Add ncRNA sequence
+  hits.all$motif.nt[i] <- unname(as.character(narrow(this.locus, start = hits.all$start1[i], end = hits.all$end2[i])))
+  
+}
+
+# Export FASTA and MSA of all hits that are less than 50 bp from the start of HTH
+x <- hits.all %>% filter(start1 < 50)
+y <- setNames(DNAStringSet(x$motif.nt), x$index)
+writeXStringSet(y, "All_motifs_w_in_50bp_of_HTH_start.fna")
 
 
 ################################################################
