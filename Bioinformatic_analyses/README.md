@@ -3,10 +3,14 @@
 
 This repository contains the computational pipeline used to identify guide RNA (gRNA) sequences and their putative genomic targets for domesticated Cas12f (dCas12f) proteins, as described in [Citation].
 
-## Note
+## Note 1
 
 *This code is not meant to represent a traditional program. Instead, it reflects custom R code used for the bioinformatic analyses in Hoffmann et al (2025).
-The script includes both R language code and command line code (in comments), and should be run in Rstudio line-by-line with the Run function.**
+The script includes both R language code and command line code (in comments), and should be run in Rstudio line-by-line with the Run function.*
+
+## Note 2
+
+**Accompanying input data should be downloaded from: https://drive.google.com/drive/folders/1R7MuxpKOd3Azzx2b4H5uE4NaR2dgJ6UB?usp=drive_link**
 
 ## Overview
 
