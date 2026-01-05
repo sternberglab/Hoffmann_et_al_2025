@@ -5,7 +5,7 @@ This repository contains the computational pipeline used to identify guide RNA (
 
 ## Note 1
 
-*This code is not meant to represent a traditional program. Instead, it reflects custom R code used for the bioinformatic analyses in Hoffmann et al (2025).
+*This code is not meant to represent a traditional program. Instead, it reflects custom R code used for the bioinformatic analyses in Hoffmann et al (2026).
 The script includes both R language code and command line code (in comments), and should be run in Rstudio line-by-line with the Run function.*
 
 ## Note 2
@@ -128,7 +128,7 @@ Tab-separated file with columns:
 
 ## Usage
 
-1. **Configure paths**: Edit the CONFIGURATION section at the top of `Hoffmann_et_al_2025_Bioinformatics.R` to set:
+1. **Configure paths**: Edit the CONFIGURATION section at the top of `Hoffmann_et_al_2026_Bioinformatics.R` to set:
    - Working directory
    - Path to Pfam database
    - Path to Pfam clans file
