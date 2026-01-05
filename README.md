@@ -1,4 +1,4 @@
-# Exapted CRISPR-Cas12f homologs drive RNA-guided transcription (Hoffmann et al, 2025)
+# Exapted CRISPR-Cas12f homologs drive RNA-guided transcription (Hoffmann et al, 2026)
 
 Included here:
 ## Bioinformatic analyses
