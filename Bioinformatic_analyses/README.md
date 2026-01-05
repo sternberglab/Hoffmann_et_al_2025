@@ -1,7 +1,7 @@
 [README.md](https://github.com/user-attachments/files/24242144/README.md)
 # Bioinformatic analyses of dCas12f Proteins
 
-This repository contains the computational pipeline used to identify guide RNA (gRNA) sequences and their putative genomic targets for domesticated Cas12f (dCas12f) proteins, as described in [Citation].
+This repository contains the computational pipeline used to identify guide RNA (gRNA) sequences and their putative genomic targets for domesticated Cas12f (dCas12f) proteins.
 
 ## Note 1
 
